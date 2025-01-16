@@ -27,13 +27,15 @@
         Retour
       </button>
     </div>
+
     <!-- Liste des documents -->
     <h2>Documents enregistrés</h2>
     <div class="document-list">
       <div v-for="doc in filteredDocuments" :key="doc._id" class="document-card">
         <!-- Edition inline -->
         <div v-if="doc._id === editingDocumentId">
-          <input v-model="doc.title" class="edit-input" />
+          <input v-model="doc.title" class="edit-input" placeholder="Titre du document" />
+          <textarea v-model="doc.content" class="edit-textarea" placeholder="Contenu du document"></textarea>
           <div class="actions">
             <button class="btn save" @click="saveEditedDocument(doc)">✅ Enregistrer</button>
             <button class="btn cancel" @click="cancelEdit">❌ Annuler</button>
@@ -42,6 +44,7 @@
         <!-- Affichage normal -->
         <div v-else>
           <h3>{{ doc.title || "Sans titre" }}</h3>
+          <p>{{ doc.content || "Pas de contenu" }}</p>
           <ul v-if="doc._attachments">
             <li v-for="(file, fileName) in doc._attachments" :key="fileName">
               <a :href="getAttachmentUrl(doc._id, fileName)" target="_blank">
@@ -51,11 +54,27 @@
             </li>
           </ul>
           <div class="actions">
+            <button class="btn view" @click="viewDocument(doc)">👁️ Voir</button>
             <button class="btn edit" @click="editDocument(doc)">✏️ Modifier</button>
             <button class="btn delete" @click="deleteDocument(doc)">🗑️ Supprimer</button>
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Section Détails du document -->
+    <div v-if="selectedDocument" class="document-details">
+      <h2>Détails du document</h2>
+      <p><strong>Titre :</strong> {{ selectedDocument.title || "Sans titre" }}</p>
+      <p><strong>Contenu :</strong> {{ selectedDocument.content || "Aucun contenu" }}</p>
+      <ul v-if="selectedDocument._attachments">
+        <li v-for="(file, fileName) in selectedDocument._attachments" :key="fileName">
+          <a :href="getAttachmentUrl(selectedDocument._id, fileName)" target="_blank">
+            {{ fileName }}
+          </a>
+        </li>
+      </ul>
+      <button class="btn close" @click="closeDetails">Fermer</button>
     </div>
 
     <!-- Conteneur pour l'ajout et la génération -->
@@ -74,7 +93,6 @@
     </div>
   </div>
 </template>
-
 
 <script>
 import PouchDB from "pouchdb";
@@ -96,6 +114,7 @@ export default {
       notificationMessage: null,
       notificationType: "success",
       searchQuery: "",
+      selectedDocument: null,
     };
   },
   methods: {
@@ -107,7 +126,10 @@ export default {
             this.filteredDocuments = this.documents;
           })
           .catch((err) => {
-            this.showNotification("Erreur lors de la récupération des documents", "error");
+            this.showNotification(
+                "Erreur lors de la récupération des documents",
+                "error"
+            );
             console.error(err);
           });
     },
@@ -141,14 +163,16 @@ export default {
             this.showNotification("Documents générés avec succès", "success");
           })
           .catch((err) => {
-            this.showNotification("Erreur lors de la génération des documents", "error");
+            this.showNotification(
+                "Erreur lors de la génération des documents",
+                "error"
+            );
             console.error(err);
           });
     },
     searchDocuments() {
       const query = this.searchQuery.trim().toLowerCase();
       if (!query) {
-        // Si le champ de recherche est vide, rétablir tous les documents
         this.filteredDocuments = this.documents;
         return;
       }
@@ -157,10 +181,9 @@ export default {
       });
     },
     clearSearch() {
-      this.searchQuery = ""; // Réinitialise le champ de recherche
-      this.filteredDocuments = this.documents; // Restaure tous les documents
+      this.searchQuery = "";
+      this.filteredDocuments = this.documents;
     },
-
     handleFileUpload(event) {
       const files = event.target.files;
       this.fileData = {};
@@ -188,7 +211,10 @@ export default {
             this.showNotification("Document modifié avec succès", "success");
           })
           .catch((err) => {
-            this.showNotification("Erreur lors de la mise à jour du document", "error");
+            this.showNotification(
+                "Erreur lors de la mise à jour du document",
+                "error"
+            );
             console.error(err);
           });
     },
@@ -196,6 +222,7 @@ export default {
       this.editingDocumentId = null;
       this.fetchDocuments();
     },
+
     deleteDocument(doc) {
       localDb
           .remove(doc)
@@ -204,7 +231,10 @@ export default {
             this.showNotification("Document supprimé avec succès", "success");
           })
           .catch((err) => {
-            this.showNotification("Erreur lors de la suppression du document", "error");
+            this.showNotification(
+                "Erreur lors de la suppression du document",
+                "error"
+            );
             console.error(err);
           });
     },
@@ -221,7 +251,10 @@ export default {
             this.showNotification("Fichier supprimé avec succès", "success");
           })
           .catch((err) => {
-            this.showNotification("Erreur lors de la suppression du fichier", "error");
+            this.showNotification(
+                "Erreur lors de la suppression du fichier",
+                "error"
+            );
             console.error(err);
           });
     },
@@ -235,17 +268,21 @@ export default {
         this.notificationMessage = null;
       }, 3000);
     },
+    viewDocument(doc) {
+      this.selectedDocument = doc;
+    },
+    closeDetails() {
+      this.selectedDocument = null;
+    },
   },
   created() {
     this.fetchDocuments();
 
     localDb.sync(remoteDb, { live: true, retry: true });
 
-    localDb
-        .changes({ live: true, include_docs: true })
-        .on("change", () => {
-          this.fetchDocuments();
-        });
+    localDb.changes({ live: true, include_docs: true }).on("change", () => {
+      this.fetchDocuments();
+    });
 
     localDb
         .createIndex({ index: { fields: ["title"] } })
@@ -258,6 +295,7 @@ export default {
   },
 };
 </script>
+
 
 <style>
 /* Ajout pour séparer le bouton de génération */
@@ -310,7 +348,8 @@ body {
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
-h1, h2 {
+h1,
+h2 {
   color: #2c3e50;
   text-align: center;
 }
@@ -345,6 +384,7 @@ h1, h2 {
   background-color: #007bff;
   color: white;
 }
+
 /* Bouton Modifier en vert */
 .btn.edit {
   background-color: #28a745;
@@ -369,6 +409,7 @@ h1, h2 {
   border-radius: 5px;
   font-size: 16px;
 }
+
 .search-container {
   text-align: center;
   margin-bottom: 20px;
@@ -390,6 +431,7 @@ h1, h2 {
   border-radius: 5px;
   cursor: pointer;
 }
+
 .clear-search {
   background-color: #ffc107;
   color: white;
@@ -405,7 +447,4 @@ h1, h2 {
 .clear-search:hover {
   background-color: #e0a800;
 }
-
 </style>
-
-
