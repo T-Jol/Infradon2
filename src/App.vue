@@ -36,6 +36,8 @@
         <div v-if="doc._id === editingDocumentId">
           <input v-model="doc.title" class="edit-input" placeholder="Titre du document" />
           <textarea v-model="doc.content" class="edit-textarea" placeholder="Contenu du document"></textarea>
+          <!-- Ajout de fichier -->
+          <input type="file" @change="handleEditFileUpload($event, doc)" multiple />
           <div class="actions">
             <button class="btn save" @click="saveEditedDocument(doc)">✅ Enregistrer</button>
             <button class="btn cancel" @click="cancelEdit">❌ Annuler</button>
@@ -199,14 +201,42 @@ export default {
         reader.readAsDataURL(file);
       }
     },
+    handleEditFileUpload(event, doc) {
+      const files = event.target.files;
+
+      if (!doc._attachments) {
+        doc._attachments = {};
+      }
+
+      for (let file of files) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          doc._attachments[file.name] = {
+            content_type: file.type,
+            data: reader.result.split(",")[1],
+          };
+        };
+        reader.readAsDataURL(file);
+      }
+    },
     editDocument(doc) {
-      this.editingDocumentId = doc._id;
+      this.editingDocumentId = doc._id; // Activer le mode édition pour le document sélectionné
+      this.fileData = null; // Réinitialiser les données de fichier
     },
     saveEditedDocument(doc) {
+      // Si de nouveaux fichiers ont été ajoutés, les fusionner avec les fichiers existants
+      if (this.fileData) {
+        if (!doc._attachments) {
+          doc._attachments = {};
+        }
+        Object.assign(doc._attachments, this.fileData);
+      }
+
       localDb
           .put(doc)
           .then(() => {
             this.editingDocumentId = null;
+            this.fileData = null; // Réinitialiser les données de fichier après sauvegarde
             this.fetchDocuments();
             this.showNotification("Document modifié avec succès", "success");
           })
@@ -222,7 +252,6 @@ export default {
       this.editingDocumentId = null;
       this.fetchDocuments();
     },
-
     deleteDocument(doc) {
       localDb
           .remove(doc)
@@ -295,7 +324,6 @@ export default {
   },
 };
 </script>
-
 
 <style>
 /* Ajout pour séparer le bouton de génération */
@@ -448,3 +476,4 @@ h2 {
   background-color: #e0a800;
 }
 </style>
+
